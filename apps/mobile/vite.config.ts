@@ -4,6 +4,9 @@ import path from 'node:path';
 
 export default defineConfig({
   plugins: [react()],
+  // Capacitor 打成 APK 后从 http://localhost/ 加载 index.html,
+  // 必须用相对路径引资源,不然 /assets/... 会 404
+  base: './',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),

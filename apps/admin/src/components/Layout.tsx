@@ -6,6 +6,7 @@ import {
   BellOutlined,
   BarChartOutlined,
   SettingOutlined,
+  MobileOutlined,
   LogoutOutlined,
 } from '@ant-design/icons';
 import { Avatar, Dropdown, Layout as AntLayout, Menu, Typography, Badge } from 'antd';
@@ -24,6 +25,7 @@ const items = [
   { key: '/notifications', icon: <BellOutlined />, label: '通知中心' },
   { key: '/reports', icon: <BarChartOutlined />, label: '销售报表' },
   { key: '/settings', icon: <SettingOutlined />, label: '店铺设置' },
+  { key: '/mobile-setup', icon: <MobileOutlined />, label: '移动端配置' },
 ];
 
 export default function Layout() {

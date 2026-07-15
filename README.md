@@ -118,6 +118,8 @@ pnpm dev:api        # http://localhost:3001/api
 - **M2 · Web 后台** ✅ 商品/批次管理、临期看板、报表
 - **M3 · Web 收银** ✅ 扫码枪监听、购物车、过期拦截 UI
 - **M4 · 移动端 H5** ✅ 摄像头扫码入库、盘点、报损、临期看板
+- **M4.5 · 离线能力** ✅ 商品缓存、离线入库队列、联网自动 replay、上传历史 + 深度核对
+- **M5 · APK 打包 & 局域网发现** ✅ Capacitor + 原生扫码、admin 出 QR、GitHub Actions 云端打包 → 见 [apps/mobile/README.md](apps/mobile/README.md)
 
 ## 测试
 

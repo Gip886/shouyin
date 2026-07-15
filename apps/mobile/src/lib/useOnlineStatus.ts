@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { Network } from '@capacitor/network';
 import { api } from './api';
 
 /**
- * 判断当前是否连通后端 API(不只是 navigator.onLine —— 手机连了 Wi-Fi
- * 但访问不到局域网服务器也算离线)。
- * - 监听 window online/offline 事件
- * - 每 15s ping 一次 /api/health(不存在也没关系,我们只关心网络能不能到);
- *   或用 GET /api/store-settings 探活 —— 已知端点、返回快
+ * 是否连通后端 API(不是 navigator.onLine —— 手机连了 Wi-Fi 但访问不到局域网服务器也算离线)。
+ *
+ * 判定策略:
+ * - Web:navigator.onLine 事件 + 每 15s 打一次 /api/ping
+ * - APK:@capacitor/network 事件(准确知道 Wi-Fi/蜂窝/无网)+ 同样的 15s ping
+ *   两条通道叠加:硬件网络变化立刻反应,服务器/端口变化靠 ping 兜底
  */
 export function useOnlineStatus(): {
   online: boolean;
@@ -28,8 +31,8 @@ export function useOnlineStatus(): {
         return;
       }
       try {
-        // 5s 超时,拿一个已知端点做探活
-        await api.get('/store-settings', { timeout: 5000 });
+        // 打公开端点 /ping,不需要登录态。5s 超时,慢就当离线。
+        await api.get('/ping', { timeout: 5000 });
         if (!cancelled) {
           setOnline(true);
           setLastCheckedAt(Date.now());
@@ -42,13 +45,30 @@ export function useOnlineStatus(): {
       }
     };
 
-    const onOnline = () => probe();
-    const onOffline = () => {
+    const onWebOnline = () => probe();
+    const onWebOffline = () => {
       setOnline(false);
       setLastCheckedAt(Date.now());
     };
-    window.addEventListener('online', onOnline);
-    window.addEventListener('offline', onOffline);
+    window.addEventListener('online', onWebOnline);
+    window.addEventListener('offline', onWebOffline);
+
+    // Native:Wi-Fi/流量切换立刻响应。@capacitor/network 在 web 上会 fall back 到 navigator.onLine
+    // 事件,重复监听没害,但只在 native 上叫一次更干净
+    let netHandle: { remove: () => void } | null = null;
+    if (Capacitor.isNativePlatform()) {
+      Network.addListener('networkStatusChange', (s) => {
+        if (!s.connected) {
+          setOnline(false);
+          setLastCheckedAt(Date.now());
+        } else {
+          probe();
+        }
+      }).then((h) => {
+        if (cancelled) h.remove();
+        else netHandle = h;
+      });
+    }
 
     probe();
     const t = setInterval(probe, 15000);
@@ -56,18 +76,17 @@ export function useOnlineStatus(): {
     return () => {
       cancelled = true;
       clearInterval(t);
-      window.removeEventListener('online', onOnline);
-      window.removeEventListener('offline', onOffline);
+      window.removeEventListener('online', onWebOnline);
+      window.removeEventListener('offline', onWebOffline);
+      netHandle?.remove();
     };
   }, []);
 
   const recheck = () => {
-    // 直接改 state 触发一次 probe 的最简办法:通过 online 值变化 —— 实现里没有内暴露
-    // 这里用重置 lastCheckedAt 触发外部知晓,并异步再 probe 一次
     setLastCheckedAt(Date.now());
     (async () => {
       try {
-        await api.get('/store-settings', { timeout: 5000 });
+        await api.get('/ping', { timeout: 5000 });
         setOnline(true);
       } catch {
         setOnline(false);

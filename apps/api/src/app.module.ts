@@ -13,6 +13,7 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { StoreSettingsModule } from './modules/store-settings/store-settings.module';
+import { HealthModule } from './modules/health/health.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { StoreSettingsModule } from './modules/store-settings/store-settings.mod
     NotificationsModule,
     ReportsModule,
     StoreSettingsModule,
+    HealthModule,
   ],
   providers: [
     {
