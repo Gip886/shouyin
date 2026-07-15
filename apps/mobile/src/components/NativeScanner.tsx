@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button, Card, Input, Toast } from 'antd-mobile';
 import {
   BarcodeScanner,
@@ -7,58 +7,70 @@ import {
 import type { ScannerProps } from './Scanner';
 
 /**
- * Capacitor(APK)版:优先用 Google Code Scanner —— 不需要相机权限,由 Play Services 承担 UI。
- * 不同点:
- *  - 弹的是全屏原生 activity,不是页面内 video;所以组件视觉只是一个"开始扫码"按钮 + 手动输入兜底
- *  - autoStart 在 native 上直接忽略 —— 强制手势启动更符合 Android UX(用户点了才拉起相机)
- *  - 缺 Google Play Services 的机型(部分国产 ROM),用 scan()/startScan 的 fallback 走本地 ML Kit
+ * Capacitor(APK)版 Scanner —— 走本地打包的 ML Kit,不依赖 Google Play Services。
+ *
+ * 之前尝试过用 `BarcodeScanner.scan()`(Google Code Scanner),但对国内环境不靠谱:
+ * - 华为/小米/OPPO 没 Play Services 的机型直接报"扫码模块不可用"
+ * - 有 Play Services 也要联 Google 下模块,国内基本连不上
+ *
+ * 现在:
+ *   startScan() → 原生打开相机预览,WebView 变透明,前端画取景框浮在上面
+ *   识别到条码后自动 stopScan(),回调 onDetected
+ *   卸载时也 stopScan(),避免相机泄漏
  */
+
+const FORMATS = [
+  BarcodeFormat.Ean13,
+  BarcodeFormat.Ean8,
+  BarcodeFormat.UpcA,
+  BarcodeFormat.UpcE,
+  BarcodeFormat.Code128,
+  BarcodeFormat.Code39,
+  BarcodeFormat.QrCode,
+];
+
 export default function NativeScanner({
   onDetected,
   showManualInput = true,
 }: ScannerProps) {
   const [starting, setStarting] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const [manualCode, setManualCode] = useState('');
   const [supported, setSupported] = useState<boolean | null>(null);
+  const listenerRef = useRef<{ remove: () => void } | null>(null);
+  // 用 ref 记 onDetected,避免闭包捕获旧值
+  const onDetectedRef = useRef(onDetected);
+  onDetectedRef.current = onDetected;
 
   useEffect(() => {
-    // 只是探测一下当前设备能不能扫;不 block 手动输入
     BarcodeScanner.isSupported()
       .then((r) => setSupported(!!r.supported))
       .catch(() => setSupported(false));
+
+    // 组件卸载:确保相机、body 透明、监听全部还原
+    return () => {
+      stopScanNow();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const scan = async () => {
+  const stopScanNow = async () => {
+    try {
+      await BarcodeScanner.stopScan();
+    } catch {
+      /* 没在扫也 OK */
+    }
+    listenerRef.current?.remove();
+    listenerRef.current = null;
+    document.body.classList.remove('scanner-active');
+    setScanning(false);
+  };
+
+  const startScanNow = async () => {
+    if (starting || scanning) return;
     setStarting(true);
     try {
-      // 首选:Google Code Scanner(Play Services 承担一切,零权限)
-      try {
-        const { barcodes } = await BarcodeScanner.scan({
-          formats: [
-            BarcodeFormat.Ean13,
-            BarcodeFormat.Ean8,
-            BarcodeFormat.UpcA,
-            BarcodeFormat.UpcE,
-            BarcodeFormat.Code128,
-            BarcodeFormat.Code39,
-            BarcodeFormat.QrCode,
-          ],
-        });
-        const first = barcodes?.[0]?.rawValue;
-        if (first) onDetected(first);
-        else Toast.show({ content: '未识别到条码,可以再试一次' });
-        return;
-      } catch (e: any) {
-        // Google Code Scanner 不可用(缺 Play Services / 老 ROM)→ 回落到 bundled 模式
-        const msg = String(e?.message ?? e?.errorMessage ?? '');
-        const needsFallback =
-          /google play services/i.test(msg) ||
-          /module.*not.*installed/i.test(msg) ||
-          /GOOGLE_CODE_SCANNER/i.test(msg);
-        if (!needsFallback) throw e;
-      }
-
-      // Fallback:本地 ML Kit 模型,需要 CAMERA 运行时权限
+      // 权限
       const perm = await BarcodeScanner.requestPermissions();
       if (perm.camera !== 'granted' && perm.camera !== 'limited') {
         Toast.show({
@@ -67,27 +79,29 @@ export default function NativeScanner({
         });
         return;
       }
-      // startScan 会在 DOM 底下开一个原生 view;这里简化用 readBarcodesFromImage 是不合适的 —— 我们用 scan API 的第二个模式
-      // capacitor-mlkit 也在 scan() 内部处理了两种模式,但为了显式一点,这里直接抛给用户看
-      const { barcodes } = await BarcodeScanner.scan({
-        formats: [
-          BarcodeFormat.Ean13,
-          BarcodeFormat.Ean8,
-          BarcodeFormat.UpcA,
-          BarcodeFormat.UpcE,
-          BarcodeFormat.Code128,
-          BarcodeFormat.Code39,
-          BarcodeFormat.QrCode,
-        ],
-      });
-      const first = barcodes?.[0]?.rawValue;
-      if (first) onDetected(first);
-      else Toast.show({ content: '未识别到条码,可以再试一次' });
+
+      // 挂事件监听(必须在 startScan 之前挂,不然可能漏第一帧结果)
+      const handle = await BarcodeScanner.addListener(
+        'barcodesScanned',
+        async (event) => {
+          const raw = event?.barcodes?.[0]?.rawValue;
+          if (!raw) return;
+          // 拿到就停,避免同一码连续触发
+          await stopScanNow();
+          onDetectedRef.current(raw);
+        },
+      );
+      listenerRef.current = handle;
+
+      // 把 body 变透明,让原生相机预览可见
+      document.body.classList.add('scanner-active');
+      setScanning(true);
+
+      await BarcodeScanner.startScan({ formats: FORMATS });
     } catch (e: any) {
-      Toast.show({
-        icon: 'fail',
-        content: e?.message ?? '扫码失败',
-      });
+      const msg = e?.message ?? e?.errorMessage ?? '相机启动失败';
+      Toast.show({ icon: 'fail', content: msg });
+      await stopScanNow();
     } finally {
       setStarting(false);
     }
@@ -99,6 +113,25 @@ export default function NativeScanner({
     setManualCode('');
     onDetected(c);
   };
+
+  // 扫描进行中:全屏透明 overlay + 取景框 + 停止按钮
+  if (scanning) {
+    return (
+      <div className="native-scanner-overlay">
+        <div className="native-scanner-frame" />
+        <div className="native-scanner-hint">对准条码,识别到自动停</div>
+        <div className="native-scanner-controls">
+          <Button
+            color="danger"
+            fill="solid"
+            onClick={stopScanNow}
+          >
+            取消扫码
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -121,7 +154,7 @@ export default function NativeScanner({
           size="large"
           disabled={supported === false}
           loading={starting}
-          onClick={scan}
+          onClick={startScanNow}
         >
           开始扫码
         </Button>

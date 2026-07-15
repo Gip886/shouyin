@@ -48,3 +48,57 @@ body {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
   pointer-events: none;
 }
+
+/* --- 原生扫码(Capacitor)相机预览 overlay --- */
+/*
+ * BarcodeScanner.startScan() 把原生相机预览放在 WebView 下面,
+ * 我们把 body 变透明,让相机透出来,同时前端画一层取景框和控制条。
+ * 结束扫码后必须移除 body.scanner-active,不然整个 app 都看不见。
+ */
+body.scanner-active {
+  background: transparent !important;
+}
+body.scanner-active #root {
+  background: transparent !important;
+}
+body.scanner-active #root > * {
+  visibility: hidden;
+}
+body.scanner-active .native-scanner-overlay {
+  visibility: visible;
+}
+
+.native-scanner-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.native-scanner-frame {
+  width: 70vw;
+  height: 40vw;
+  border: 2px solid #52c41a;
+  border-radius: 10px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+.native-scanner-hint {
+  margin-top: 16px;
+  color: #fff;
+  font-size: 13px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+.native-scanner-controls {
+  position: absolute;
+  bottom: 40px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: auto;
+}
