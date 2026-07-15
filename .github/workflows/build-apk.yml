@@ -60,20 +60,40 @@ jobs:
       # manifest merger 自动合并进来,但实测某些 Capacitor 7 + AGP 版本组合下漏了。
       # 直接改 AndroidManifest.xml 最保险 —— 没声明的话系统"应用权限"里根本不出现"相机",
       # 权限申请也永远拿不到 granted。
-      - name: 补写 CAMERA 权限到 AndroidManifest.xml
+      #
+      # 同时确保 usesCleartextTraffic="true":Android 9+ 默认禁明文 HTTP,
+      # 我们的局域网后端是 http://192.168.x.x:3001,不开这个 WebView 里的 XHR 会被
+      # 静默拦截,表现就是 axios 直接 Network Error。
+      - name: 补写 AndroidManifest.xml(CAMERA 权限 + 明文 HTTP)
         working-directory: apps/mobile/android/app/src/main
         run: |
           MANIFEST=AndroidManifest.xml
           echo "--- 原 manifest ---"
           cat "$MANIFEST"
+
+          # 1) CAMERA 权限
           if grep -q 'android.permission.CAMERA' "$MANIFEST"; then
             echo "CAMERA 权限已存在,不重复加"
           else
-            # 在 </manifest> 之前插一段
             sed -i 's|</manifest>|    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n</manifest>|' "$MANIFEST"
-            echo "已补权限。--- 新 manifest ---"
-            cat "$MANIFEST"
+            echo "已补 CAMERA"
           fi
+
+          # 2) usesCleartextTraffic:如果 <application ...> 已有属性,覆盖为 true;
+          #    没有就在 <application 后加。用 python 更靠谱,sed 处理 xml 属性容易出错。
+          python3 << 'PY'
+          import re
+          p = 'AndroidManifest.xml'
+          s = open(p).read()
+          if 'android:usesCleartextTraffic' in s:
+              s = re.sub(r'android:usesCleartextTraffic="[^"]*"', 'android:usesCleartextTraffic="true"', s)
+          else:
+              s = s.replace('<application', '<application\n        android:usesCleartextTraffic="true"', 1)
+          open(p, 'w').write(s)
+          PY
+
+          echo "--- 新 manifest ---"
+          cat "$MANIFEST"
 
       # gradlew 是 checkout 下来的普通文件,CI 上 shebang 是保留的但可执行位可能没:显式赋权
       - name: 赋 gradlew 可执行位
