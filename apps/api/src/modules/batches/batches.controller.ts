@@ -7,12 +7,17 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
   IsInt,
   IsNumberString,
   IsOptional,
   IsString,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { BatchesService } from './batches.service';
 import { CurrentUser, CurrentUserPayload } from '../auth/jwt-auth.guard';
 
@@ -23,6 +28,15 @@ class CreateBatchDto {
   @IsString() expiryDate!: string;
   @IsInt() @Min(1) quantity!: number;
   @IsNumberString() costPrice!: string;
+}
+
+class BulkCreateDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => CreateBatchDto)
+  items!: CreateBatchDto[];
 }
 
 class AdjustDto {
@@ -53,6 +67,14 @@ export class BatchesController {
   @Post()
   create(@CurrentUser() u: CurrentUserPayload, @Body() body: CreateBatchDto) {
     return this.svc.create(u.userId, body);
+  }
+
+  @Post('bulk')
+  bulkCreate(
+    @CurrentUser() u: CurrentUserPayload,
+    @Body() body: BulkCreateDto,
+  ) {
+    return this.svc.bulkCreate(u.userId, body.items);
   }
 
   @Post(':id/adjust')

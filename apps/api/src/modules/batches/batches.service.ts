@@ -121,6 +121,56 @@ export class BatchesService {
     });
   }
 
+  /**
+   * 批量入库(供离线队列 replay 用)。
+   * 逐条尝试,单条失败记 error 后继续,不使用大事务 —— 这样一条脏数据不会把
+   * 已成功的都回滚,前端 replay 时可精准知道哪条失败并保留在本地重试。
+   * 每条内部仍走 create() 的单条事务(批次 + 流水)。
+   */
+  async bulkCreate(
+    operatorId: string,
+    items: {
+      productId: string;
+      batchNo?: string;
+      productionDate: string;
+      expiryDate: string;
+      quantity: number;
+      costPrice: string;
+    }[],
+  ) {
+    if (!items?.length) throw new BadRequestException('列表为空');
+    const results: {
+      index: number;
+      ok: boolean;
+      batchId?: string;
+      batchNo?: string;
+      error?: string;
+    }[] = [];
+    for (let i = 0; i < items.length; i++) {
+      try {
+        const b = await this.create(operatorId, items[i]);
+        results.push({
+          index: i,
+          ok: true,
+          batchId: b.id,
+          batchNo: b.batchNo,
+        });
+      } catch (e: any) {
+        const msg =
+          Array.isArray(e?.response?.message)
+            ? e.response.message.join('；')
+            : e?.response?.message ?? e?.message ?? '入库失败';
+        results.push({ index: i, ok: false, error: String(msg) });
+      }
+    }
+    return {
+      total: items.length,
+      succeeded: results.filter((r) => r.ok).length,
+      failed: results.filter((r) => !r.ok).length,
+      results,
+    };
+  }
+
   /** 库存调整 / 报损。delta 正数增加、负数减少 */
   async adjust(
     operatorId: string,

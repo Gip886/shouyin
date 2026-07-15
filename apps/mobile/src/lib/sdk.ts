@@ -62,6 +62,10 @@ export const listProducts = (q?: string) =>
 export const listBatchesByProduct = (productId: string) =>
   api.get<Batch[]>('/batches', { params: { productId } }).then((r) => r.data);
 
+/** 深度确认某个批次(用于历史项点击查看) */
+export const getBatch = (id: string) =>
+  api.get<Batch>(`/batches/${id}`).then((r) => r.data);
+
 export const nearExpiry = (days = 30) =>
   api
     .get<NearExpiryBatch[]>('/batches/near-expiry', { params: { days } })
@@ -69,6 +73,25 @@ export const nearExpiry = (days = 30) =>
 
 export const createBatch = (data: CreateBatchRequest) =>
   api.post<Batch>('/batches', data).then((r) => r.data);
+
+// 批量入库(供离线队列 replay 使用)。逐条尝试,单条失败不影响其它
+export interface BulkCreateResultItem {
+  index: number;
+  ok: boolean;
+  batchId?: string;
+  batchNo?: string;
+  error?: string;
+}
+export interface BulkCreateResult {
+  total: number;
+  succeeded: number;
+  failed: number;
+  results: BulkCreateResultItem[];
+}
+export const bulkCreateBatches = (items: CreateBatchRequest[]) =>
+  api
+    .post<BulkCreateResult>('/batches/bulk', { items })
+    .then((r) => r.data);
 
 export const adjustBatch = (id: string, data: AdjustBatchRequest) =>
   api.post<Batch>(`/batches/${id}/adjust`, data).then((r) => r.data);

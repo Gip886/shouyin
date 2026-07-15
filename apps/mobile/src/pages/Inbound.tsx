@@ -3,25 +3,40 @@ import {
   Card,
   DatePicker,
   Dialog,
-  Form,
   Input,
   List,
   Stepper,
+  Tag,
   Toast,
 } from 'antd-mobile';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import Scanner from '../components/Scanner';
-import { createBatch, findProductByBarcode, type Product } from '../lib/sdk';
+import {
+  createBatch,
+  findProductByBarcode,
+  type Product,
+} from '../lib/sdk';
+import {
+  clientUuid,
+  enqueueInbound,
+  findLocalProductByBarcode,
+  appendHistory,
+} from '../lib/offlineDb';
+import { useOffline } from '../lib/OfflineContext';
 
 /**
- * 入库页:
- *   扫码 → 查商品 → 填生产日期 / 保质期天数 / 数量 / 成本价 → 提交
- * 提交后清空表单,回到扫码状态,可连续入库
+ * 入库页(支持离线):
+ *   - 商品查找:优先本地缓存,联网时再兜底远程
+ *   - 提交:在线直接 POST /batches;离线塞 pending_inbounds 队列,联网后自动 replay
  */
 export default function InboundPage() {
   const qc = useQueryClient();
+  const nav = useNavigate();
+  const { online, pending } = useOffline();
+
   const [product, setProduct] = useState<Product | null>(null);
   const [productionDate, setProductionDate] = useState<Date | null>(
     dayjs().startOf('day').toDate(),
@@ -30,7 +45,7 @@ export default function InboundPage() {
   const [quantity, setQuantity] = useState(1);
   const [costPrice, setCostPrice] = useState('');
   const [datePickerOpen, setDatePickerOpen] = useState(false);
-  const [scannerKey, setScannerKey] = useState(0); // 用于重新挂载 Scanner 组件重启摄像头
+  const [scannerKey, setScannerKey] = useState(0);
 
   const reset = () => {
     setProduct(null);
@@ -43,39 +58,108 @@ export default function InboundPage() {
 
   const onDetected = async (code: string) => {
     Toast.show({ content: `识别到:${code}`, duration: 800 });
-    try {
-      const p = await findProductByBarcode(code);
-      if (!p) {
-        Dialog.alert({
-          title: '未找到商品',
-          content: `条码 ${code} 在系统中不存在。请先在后台创建商品,再入库。`,
-          confirmText: '知道了',
-        });
+    // 先查本地
+    const local = await findLocalProductByBarcode(code);
+    if (local) {
+      setProduct(local);
+      if (local.costPrice) setCostPrice(local.costPrice);
+      return;
+    }
+    // 本地没有 → 在线再查一次远程(兼容"离线时刚建过的商品没同步下来")
+    if (online) {
+      try {
+        const p = await findProductByBarcode(code);
+        if (!p) {
+          Dialog.alert({
+            title: '未找到商品',
+            content: `条码 ${code} 未登记。请先在后台创建商品,再入库。`,
+            confirmText: '知道了',
+          });
+          setScannerKey((k) => k + 1);
+          return;
+        }
+        setProduct(p);
+        if (p.costPrice) setCostPrice(p.costPrice);
+      } catch {
         setScannerKey((k) => k + 1);
-        return;
       }
-      setProduct(p);
-      if (p.costPrice) setCostPrice(p.costPrice);
-    } catch {
+    } else {
+      Dialog.alert({
+        title: '本地未找到该商品',
+        content: (
+          <div>
+            <div>条码 {code} 不在离线缓存里。</div>
+            <div style={{ marginTop: 6, color: '#8c8c8c', fontSize: 12 }}>
+              离线状态无法查询新商品;请联网后到"待同步"页手动同步商品数据。
+            </div>
+          </div>
+        ),
+        confirmText: '知道了',
+      });
       setScannerKey((k) => k + 1);
     }
   };
 
-  const submit = useMutation({
+  const validate = (): string | null => {
+    if (!product) return '未选商品';
+    if (!productionDate) return '请选择生产日期';
+    if (shelfLifeDays <= 0) return '保质期天数需 > 0';
+    if (quantity <= 0) return '数量需 > 0';
+    if (!costPrice || Number(costPrice) < 0) return '请填成本价';
+    return null;
+  };
+
+  // 在线路径:直接 POST(同时也写入 upload_history,让员工事后能看到)
+  const submitOnline = useMutation({
     mutationFn: async () => {
-      if (!product) throw new Error('未选商品');
-      if (!productionDate) throw new Error('请选择生产日期');
-      if (shelfLifeDays <= 0) throw new Error('保质期天数需 > 0');
-      if (quantity <= 0) throw new Error('数量需 > 0');
-      if (!costPrice || Number(costPrice) < 0) throw new Error('请填成本价');
+      const err = validate();
+      if (err) throw new Error(err);
       const expiry = dayjs(productionDate).add(shelfLifeDays, 'day');
-      return createBatch({
-        productId: product.id,
-        productionDate: dayjs(productionDate).format('YYYY-MM-DD'),
-        expiryDate: expiry.format('YYYY-MM-DD'),
+      const now = Date.now();
+      const snapshot = {
+        productName: product!.name,
+        productBarcode: product!.barcode,
         quantity,
-        costPrice,
-      });
+        productionDate: dayjs(productionDate!).format('YYYY-MM-DD'),
+        expiryDate: expiry.format('YYYY-MM-DD'),
+        createdAt: now,
+      };
+      try {
+        const b = await createBatch({
+          productId: product!.id,
+          productionDate: snapshot.productionDate,
+          expiryDate: snapshot.expiryDate,
+          quantity,
+          costPrice,
+        });
+        await appendHistory([
+          {
+            clientId: clientUuid(),
+            ...snapshot,
+            uploadedAt: Date.now(),
+            ok: true,
+            batchId: b.id,
+            batchNo: b.batchNo,
+          },
+        ]);
+        await pending.refresh();
+        return b;
+      } catch (e: any) {
+        // 在线路径失败,也留一条失败历史,方便员工排查(比如网络断了一半)
+        const raw = e?.response?.data?.message;
+        const msg = Array.isArray(raw) ? raw.join('；') : raw ?? e?.message ?? '入库失败';
+        await appendHistory([
+          {
+            clientId: clientUuid(),
+            ...snapshot,
+            uploadedAt: Date.now(),
+            ok: false,
+            error: String(msg),
+          },
+        ]);
+        await pending.refresh();
+        throw e;
+      }
     },
     onSuccess: (b) => {
       Toast.show({ icon: 'success', content: `已入库:${b.batchNo}` });
@@ -83,9 +167,44 @@ export default function InboundPage() {
       reset();
     },
     onError: (e: any) => {
-      Toast.show({ icon: 'fail', content: e?.message ?? '入库失败' });
+      const raw = e?.response?.data?.message;
+      const msg = Array.isArray(raw) ? raw.join('；') : raw ?? e?.message ?? '入库失败';
+      Toast.show({ icon: 'fail', content: msg });
     },
   });
+
+  // 离线路径:入 pending 队列
+  const submitOffline = async () => {
+    const err = validate();
+    if (err) {
+      Toast.show({ icon: 'fail', content: err });
+      return;
+    }
+    const expiry = dayjs(productionDate!).add(shelfLifeDays, 'day');
+    await enqueueInbound({
+      clientId: clientUuid(),
+      productId: product!.id,
+      productName: product!.name,
+      productBarcode: product!.barcode,
+      productionDate: dayjs(productionDate!).format('YYYY-MM-DD'),
+      expiryDate: expiry.format('YYYY-MM-DD'),
+      quantity,
+      costPrice,
+      createdAt: Date.now(),
+    });
+    await pending.refresh();
+    Toast.show({
+      icon: 'success',
+      content: `已入队 · 队列 ${pending.count + 1} 条`,
+      duration: 2000,
+    });
+    reset();
+  };
+
+  const doSubmit = () => {
+    if (online) submitOnline.mutate();
+    else submitOffline();
+  };
 
   const expiryPreview = productionDate
     ? dayjs(productionDate).add(shelfLifeDays, 'day').format('YYYY-MM-DD')
@@ -93,6 +212,44 @@ export default function InboundPage() {
 
   return (
     <div style={{ padding: 12 }}>
+      {!online && (
+        <div
+          style={{
+            background: '#fff7e6',
+            border: '1px solid #ffd591',
+            color: '#874d00',
+            borderRadius: 8,
+            padding: '8px 12px',
+            marginBottom: 12,
+            fontSize: 12,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <span>
+            当前离线,入库将排队;联网后自动提交。
+            {pending.count > 0 && (
+              <span style={{ marginLeft: 6 }}>
+                队列 <b>{pending.count}</b> 条。
+              </span>
+            )}
+          </span>
+          {pending.count > 0 && (
+            <span
+              style={{
+                color: '#1677ff',
+                whiteSpace: 'nowrap',
+                fontWeight: 600,
+              }}
+              onClick={() => nav('/pending')}
+            >
+              查看 →
+            </span>
+          )}
+        </div>
+      )}
       {!product ? (
         <Card title="扫描或输入商品条码">
           <Scanner key={scannerKey} onDetected={onDetected} showManualInput />
@@ -100,7 +257,12 @@ export default function InboundPage() {
       ) : (
         <>
           <Card
-            title={product.name}
+            title={
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>{product.name}</span>
+                {!online && <Tag color="warning">离线</Tag>}
+              </div>
+            }
             extra={
               <span style={{ color: '#1677ff', fontSize: 12 }} onClick={reset}>
                 重新扫码
@@ -168,13 +330,13 @@ export default function InboundPage() {
 
           <Button
             block
-            color="primary"
+            color={online ? 'primary' : 'warning'}
             size="large"
             style={{ marginTop: 16 }}
-            loading={submit.isPending}
-            onClick={() => submit.mutate()}
+            loading={submitOnline.isPending}
+            onClick={doSubmit}
           >
-            提交入库
+            {online ? '提交入库' : '离线排队'}
           </Button>
 
           <DatePicker

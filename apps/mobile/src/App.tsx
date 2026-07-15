@@ -6,6 +6,8 @@ import InboundPage from './pages/Inbound';
 import StocktakePage from './pages/Stocktake';
 import ScrapPage from './pages/Scrap';
 import NearExpiryPage from './pages/NearExpiry';
+import PendingPage from './pages/Pending';
+import { OfflineProvider } from './lib/OfflineContext';
 
 export default function App() {
   return (
@@ -15,7 +17,9 @@ export default function App() {
         path="/"
         element={
           <RequireAuth>
-            <Layout />
+            <OfflineProvider>
+              <Layout />
+            </OfflineProvider>
           </RequireAuth>
         }
       >
@@ -24,6 +28,7 @@ export default function App() {
         <Route path="stocktake" element={<StocktakePage />} />
         <Route path="scrap" element={<ScrapPage />} />
         <Route path="near-expiry" element={<NearExpiryPage />} />
+        <Route path="pending" element={<PendingPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
