@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, Card, Input, Toast } from 'antd-mobile';
+import { Button, Card, Dialog, Input, Toast } from 'antd-mobile';
 import {
   BarcodeScanner,
   BarcodeFormat,
@@ -73,10 +73,30 @@ export default function NativeScanner({
       // 权限
       const perm = await BarcodeScanner.requestPermissions();
       if (perm.camera !== 'granted' && perm.camera !== 'limited') {
-        Toast.show({
-          icon: 'fail',
-          content: '请在系统设置里给应用授予相机权限',
-        });
+        // denied 有两种情况:
+        //  - 用户点了拒绝(以后按钮再点会再弹一次,可以引导他到设置)
+        //  - manifest 漏了 CAMERA 权限(拒绝弹窗压根不会出现)—— 这时"应用权限"里也看不到"相机"
+        // 分别给对应提示
+        if (perm.camera === 'denied') {
+          Dialog.alert({
+            title: '相机权限被拒绝',
+            content: (
+              <div>
+                <div>请前往手机 <b>设置 → 应用 → 收银库存 → 权限</b> 手动开启相机。</div>
+                <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 8 }}>
+                  如果权限列表里根本看不到"相机",说明这个 APK 编译时漏了 CAMERA
+                  声明,需要重新打包 —— 请通知管理员。
+                </div>
+              </div>
+            ),
+            confirmText: '知道了',
+          });
+        } else {
+          Toast.show({
+            icon: 'fail',
+            content: `相机权限:${perm.camera}`,
+          });
+        }
         return;
       }
 

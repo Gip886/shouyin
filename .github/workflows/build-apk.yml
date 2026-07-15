@@ -56,6 +56,25 @@ jobs:
           fi
           pnpm exec cap sync android
 
+      # 补 CAMERA 权限:@capacitor-mlkit/barcode-scanning 理论上会通过
+      # manifest merger 自动合并进来,但实测某些 Capacitor 7 + AGP 版本组合下漏了。
+      # 直接改 AndroidManifest.xml 最保险 —— 没声明的话系统"应用权限"里根本不出现"相机",
+      # 权限申请也永远拿不到 granted。
+      - name: 补写 CAMERA 权限到 AndroidManifest.xml
+        working-directory: apps/mobile/android/app/src/main
+        run: |
+          MANIFEST=AndroidManifest.xml
+          echo "--- 原 manifest ---"
+          cat "$MANIFEST"
+          if grep -q 'android.permission.CAMERA' "$MANIFEST"; then
+            echo "CAMERA 权限已存在,不重复加"
+          else
+            # 在 </manifest> 之前插一段
+            sed -i 's|</manifest>|    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n</manifest>|' "$MANIFEST"
+            echo "已补权限。--- 新 manifest ---"
+            cat "$MANIFEST"
+          fi
+
       # gradlew 是 checkout 下来的普通文件,CI 上 shebang 是保留的但可执行位可能没:显式赋权
       - name: 赋 gradlew 可执行位
         working-directory: apps/mobile/android
