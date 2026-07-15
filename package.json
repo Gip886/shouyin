@@ -9,7 +9,7 @@
     "dev:api": "pnpm --filter @shouyin/shared build && pnpm --filter @shouyin/api dev",
     "dev:admin": "pnpm --filter @shouyin/shared build && pnpm --filter @shouyin/admin dev",
     "dev:pos": "pnpm --filter @shouyin/shared build && pnpm --filter @shouyin/pos dev",
-    "dev:mobile": "pnpm --filter @shouyin/mobile dev",
+    "dev:mobile": "pnpm --filter @shouyin/shared build && pnpm --filter @shouyin/mobile dev",
     "db:up": "docker compose -p shouyin up -d postgres",
     "db:down": "docker compose -p shouyin down",
     "db:migrate": "pnpm --filter @shouyin/api db:migrate",
