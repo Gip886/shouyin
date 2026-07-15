@@ -14,7 +14,7 @@ Web H5 版跑得起来 = `pnpm --filter @shouyin/mobile dev`。这里主要讲**
 
 ### 姿势 1 · GitHub Actions 云端打(**推荐,不用装任何东西**)
 
-本地什么都不用装。把仓库推到 GitHub,workflow 在云端跑 Ubuntu runner + JDK 17 + Android SDK,产出 APK 挂在 Actions Artifacts 或 Release 里。
+本地什么都不用装。把仓库推到 GitHub,workflow 在云端跑 Ubuntu runner + JDK 21 + Android SDK,产出 APK 挂在 Actions Artifacts 或 Release 里。
 
 **首次:**
 
@@ -59,7 +59,7 @@ workflow 文件在 `.github/workflows/build-apk.yml`,不用改。
 
 - [Android Studio](https://developer.android.com/studio)(自带 SDK 管理器)
 - 打开 Android Studio,让它下 API 34 或 35
-- JDK 17(Android Studio 自带一个)
+- JDK 21(Capacitor 7 要求;Android Studio 通常自带一个够新的)
 - 环境变量:
 
   macOS/Linux:
