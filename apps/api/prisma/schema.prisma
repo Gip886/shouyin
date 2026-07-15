@@ -1,0 +1,168 @@
+// Prisma schema —— 单店收银系统
+// 生成方式：pnpm --filter @shouyin/api prisma migrate dev --name init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  CASHIER
+  STOCKER
+}
+
+enum BatchStatus {
+  ACTIVE
+  DEPLETED
+  EXPIRED_REMOVED
+}
+
+enum TxnType {
+  IN
+  SALE
+  ADJUST
+  SCRAP
+}
+
+enum PaymentMethod {
+  CASH
+  WECHAT
+  ALIPAY
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  displayName  String
+  role         Role     @default(CASHIER)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  orders       Order[]
+  inventoryTxns InventoryTxn[]
+}
+
+model Category {
+  id             String    @id @default(cuid())
+  name           String    @unique
+  nearExpiryDays Int       @default(30) // 品类默认临期阈值（天）
+  createdAt      DateTime  @default(now())
+  products       Product[]
+}
+
+model Product {
+  id             String   @id @default(cuid())
+  barcode        String   @unique
+  name           String
+  categoryId     String
+  category       Category @relation(fields: [categoryId], references: [id])
+  unit           String   @default("件")
+  salePrice      Decimal  @db.Decimal(10, 2)
+  costPrice      Decimal  @db.Decimal(10, 2)
+  nearExpiryDays Int?     // 单品覆盖品类阈值；null 表示继承 category
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  batches        Batch[]
+  orderItems     OrderItem[]
+
+  @@index([name])
+}
+
+model Batch {
+  id             String      @id @default(cuid())
+  productId      String
+  product        Product     @relation(fields: [productId], references: [id])
+  batchNo        String                              // 批次号
+  productionDate DateTime    @db.Date
+  expiryDate     DateTime    @db.Date                // 到期日（预算好落库）
+  quantity       Int                                 // 当前剩余
+  initialQty     Int                                 // 入库时数量
+  costPrice      Decimal     @db.Decimal(10, 2)
+  status         BatchStatus @default(ACTIVE)
+  receivedAt     DateTime    @default(now())
+
+  transactions   InventoryTxn[]
+  orderItems     OrderItem[]
+
+  @@unique([productId, batchNo])
+  @@index([productId, expiryDate])   // FIFO 关键索引
+  @@index([expiryDate, status])      // 临期看板
+}
+
+model InventoryTxn {
+  id         String   @id @default(cuid())
+  batchId    String
+  batch      Batch    @relation(fields: [batchId], references: [id])
+  type       TxnType
+  qty        Int                                     // 正数入、负数出
+  reason     String?
+  operatorId String
+  operator   User     @relation(fields: [operatorId], references: [id])
+  orderId    String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([batchId, createdAt])
+}
+
+model Order {
+  id            String        @id @default(cuid())
+  cashierId     String
+  cashier       User          @relation(fields: [cashierId], references: [id])
+  totalAmount   Decimal       @db.Decimal(10, 2)
+  paidAmount    Decimal       @db.Decimal(10, 2)
+  paymentMethod PaymentMethod
+  createdAt     DateTime      @default(now())
+
+  items         OrderItem[]
+
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  batchId   String
+  batch     Batch   @relation(fields: [batchId], references: [id])
+  qty       Int
+  unitPrice Decimal @db.Decimal(10, 2)
+  subtotal  Decimal @db.Decimal(10, 2)
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  kind      String                          // e.g. NEAR_EXPIRY_DAILY
+  title     String
+  body      String
+  payload   Json?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([kind, createdAt])
+}
+
+// 店铺配置(单店版:全表只保留 id="default" 一行,后端做 upsert 语义)
+model StoreSettings {
+  id                    String   @id @default("default")
+  storeName             String   @default("我的小店")
+  address               String   @default("")
+  phone                 String   @default("")
+  taxId                 String   @default("")     // 税号,不需要留空
+  receiptFooter         String   @default("谢谢惠顾 · 欢迎再次光临")
+  receiptWidthMm        Int      @default(80)     // 热敏纸宽:58 / 80
+  autoPrintReceipt      Boolean  @default(true)   // 结账后是否自动打印
+  allowBrowserPrint     Boolean  @default(false)  // 是否允许浏览器 window.print 兜底
+  updatedAt             DateTime @updatedAt
+}

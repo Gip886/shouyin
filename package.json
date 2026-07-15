@@ -1,0 +1,26 @@
+{
+  "name": "shouyin",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "build:shared": "pnpm --filter @shouyin/shared build",
+    "dev:shared": "pnpm --filter @shouyin/shared dev",
+    "dev:api": "pnpm --filter @shouyin/shared build && pnpm --filter @shouyin/api dev",
+    "dev:admin": "pnpm --filter @shouyin/shared build && pnpm --filter @shouyin/admin dev",
+    "dev:pos": "pnpm --filter @shouyin/shared build && pnpm --filter @shouyin/pos dev",
+    "dev:mobile": "pnpm --filter @shouyin/mobile dev",
+    "db:up": "docker compose -p shouyin up -d postgres",
+    "db:down": "docker compose -p shouyin down",
+    "db:migrate": "pnpm --filter @shouyin/api db:migrate",
+    "db:seed": "pnpm --filter @shouyin/api db:seed",
+    "db:studio": "pnpm --filter @shouyin/api db:studio",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "prettier": "^3.2.5"
+  }
+}

@@ -1,0 +1,14 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+/* POS 全局样式 */
+.pos-row-selected > td {
+  background-color: #e6f4ff !important;
+  transition: background-color 120ms ease;
+}
+.pos-row-selected > td:first-child {
+  border-left: 3px solid #1677ff;
+  padding-left: 8px !important;
+}
