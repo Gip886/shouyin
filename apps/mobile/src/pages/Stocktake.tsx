@@ -227,7 +227,7 @@ export default function StocktakePage() {
                       }
                       description={
                         <span style={{ fontSize: 12 }}>
-                          到期 {b.expiryDate} · 系统 {b.quantity}
+                          到期 {b.expiryDate ?? '—'} · 系统 {b.quantity}
                         </span>
                       }
                       extra={

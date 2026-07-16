@@ -96,6 +96,8 @@ export class ReportsService {
       where: {
         quantity: { gt: 0 },
         expiryDate: { lt: today },
+        // 只统计有保质期品类的过期损失
+        product: { category: { hasExpiry: true } },
         // 已过期批次（无论 status 是不是 EXPIRED_REMOVED）都是潜在损失
       },
     });

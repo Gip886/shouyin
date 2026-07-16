@@ -24,8 +24,9 @@ import { CurrentUser, CurrentUserPayload } from '../auth/jwt-auth.guard';
 class CreateBatchDto {
   @IsString() productId!: string;
   @IsOptional() @IsString() batchNo?: string;
-  @IsString() productionDate!: string; // YYYY-MM-DD
-  @IsString() expiryDate!: string;
+  // 无保质期品类可省略;service 层会根据 category.hasExpiry 决定必填还是允许为空
+  @IsOptional() @IsString() productionDate?: string; // YYYY-MM-DD
+  @IsOptional() @IsString() expiryDate?: string;
   @IsInt() @Min(1) quantity!: number;
   @IsNumberString() costPrice!: string;
 }

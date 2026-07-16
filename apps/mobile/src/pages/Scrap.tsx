@@ -119,7 +119,7 @@ export default function ScrapPage() {
             <b>{product?.name}</b>
           </div>
           <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 4 }}>
-            批次 {selectedBatch.batchNo} · 到期 {selectedBatch.expiryDate}
+            批次 {selectedBatch.batchNo} · 到期 {selectedBatch.expiryDate ?? '—'}
           </div>
           <div style={{ marginTop: 8 }}>
             报损 <b style={{ color: '#ff4d4f' }}>{scrapQty}</b> 件 · 原因:{reason || '(空)'}
@@ -171,7 +171,7 @@ export default function ScrapPage() {
                         title={`批次 ${b.batchNo}`}
                         description={
                           <span style={{ fontSize: 12 }}>
-                            到期 {b.expiryDate} · 剩 {b.quantity} 件
+                            到期 {b.expiryDate ?? '—'} · 剩 {b.quantity} 件
                           </span>
                         }
                         prefix={<Radio value={b.id} />}

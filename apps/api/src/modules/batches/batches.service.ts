@@ -62,8 +62,8 @@ export class BatchesService {
     data: {
       productId: string;
       batchNo?: string;
-      productionDate: string;
-      expiryDate: string;
+      productionDate?: string;
+      expiryDate?: string;
       quantity: number;
       costPrice: string;
     },
@@ -71,6 +71,7 @@ export class BatchesService {
     if (data.quantity <= 0) throw new BadRequestException('数量必须大于 0');
     const prod = await this.prisma.product.findUnique({
       where: { id: data.productId },
+      include: { category: true },
     });
     if (!prod) throw new NotFoundException('商品不存在');
 
@@ -87,20 +88,33 @@ export class BatchesService {
       batchNo = `${stamp}-${String(sameDay + 1).padStart(3, '0')}`;
     }
 
-    const production = new Date(data.productionDate);
-    const expiry = new Date(data.expiryDate);
-    if (Number.isNaN(production.valueOf()) || Number.isNaN(expiry.valueOf())) {
-      throw new BadRequestException('日期格式无效');
+    // 分类是否管过期,决定日期是必填还是允许为空
+    const needsExpiry = prod.category.hasExpiry;
+    let production: Date | null = null;
+    let expiry: Date | null = null;
+
+    if (needsExpiry) {
+      if (!data.productionDate || !data.expiryDate) {
+        throw new BadRequestException(
+          `该分类"${prod.category.name}"要求填写生产日期和到期日`,
+        );
+      }
+      production = new Date(data.productionDate);
+      expiry = new Date(data.expiryDate);
+      if (Number.isNaN(production.valueOf()) || Number.isNaN(expiry.valueOf())) {
+        throw new BadRequestException('日期格式无效');
+      }
+      if (expiry.valueOf() < production.valueOf()) {
+        throw new BadRequestException('到期日不能早于生产日');
+      }
     }
-    if (expiry.valueOf() < production.valueOf()) {
-      throw new BadRequestException('到期日不能早于生产日');
-    }
+    // 无保质期分类:即使前端传了日期也丢弃,以分类字段为准 —— 员工可能改分类,数据保持一致
 
     return this.prisma.$transaction(async (tx) => {
       const batch = await tx.batch.create({
         data: {
           productId: data.productId,
-          batchNo,
+          batchNo: batchNo!,
           productionDate: production,
           expiryDate: expiry,
           quantity: data.quantity,
@@ -132,8 +146,8 @@ export class BatchesService {
     items: {
       productId: string;
       batchNo?: string;
-      productionDate: string;
-      expiryDate: string;
+      productionDate?: string;
+      expiryDate?: string;
       quantity: number;
       costPrice: string;
     }[],
@@ -216,13 +230,19 @@ export class BatchesService {
         status: BatchStatus.ACTIVE,
         quantity: { gt: 0 },
         expiryDate: { lte: horizon },
+        // 无保质期品类的批次:expiryDate 为 null,自动被上面 lte 过滤掉。
+        // 但为了显式表达意图 —— 就算以后某个查询上有 sentinel 日期也不进这里 —— 加分类过滤
+        product: { category: { hasExpiry: true } },
       },
       include: { product: true },
       orderBy: [{ expiryDate: 'asc' }],
     });
 
     return rows.map((b) => {
-      const daysLeft = diffDays(b.expiryDate, today);
+      // 走到这里的 batch 因为 category.hasExpiry=true 且被 expiryDate lte 命中,expiryDate 必非空
+      const expiry = b.expiryDate!;
+      const production = b.productionDate!;
+      const daysLeft = diffDays(expiry, today);
       const urgency: 'RED' | 'YELLOW' | 'GREEN' =
         daysLeft < 7 ? 'RED' : daysLeft <= 30 ? 'YELLOW' : 'GREEN';
       return {
@@ -231,8 +251,8 @@ export class BatchesService {
         productId: b.productId,
         productName: b.product.name,
         barcode: b.product.barcode,
-        productionDate: b.productionDate.toISOString().slice(0, 10),
-        expiryDate: b.expiryDate.toISOString().slice(0, 10),
+        productionDate: production.toISOString().slice(0, 10),
+        expiryDate: expiry.toISOString().slice(0, 10),
         daysLeft,
         quantity: b.quantity,
         costPrice: b.costPrice.toString(),

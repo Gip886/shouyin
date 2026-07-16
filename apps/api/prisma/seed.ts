@@ -46,13 +46,19 @@ async function main() {
   // 品类
   const drinks = await prisma.category.upsert({
     where: { name: '饮料' },
-    update: {},
-    create: { name: '饮料', nearExpiryDays: 30 },
+    update: { hasExpiry: true },
+    create: { name: '饮料', nearExpiryDays: 30, hasExpiry: true },
   });
   const snacks = await prisma.category.upsert({
     where: { name: '零食' },
-    update: {},
-    create: { name: '零食', nearExpiryDays: 45 },
+    update: { hasExpiry: true },
+    create: { name: '零食', nearExpiryDays: 45, hasExpiry: true },
+  });
+  // 无保质期示例:文具
+  const stationery = await prisma.category.upsert({
+    where: { name: '文具' },
+    update: { hasExpiry: false },
+    create: { name: '文具', nearExpiryDays: 0, hasExpiry: false },
   });
 
   // 商品
@@ -89,6 +95,15 @@ async function main() {
       salePrice: '6.50',
       costPrice: '3.80',
     },
+    // 无保质期示例:一根中性笔
+    {
+      barcode: '6905000000001',
+      name: '晨光中性笔 0.5mm',
+      category: stationery,
+      unit: '支',
+      salePrice: '2.00',
+      costPrice: '0.80',
+    },
   ];
 
   for (const p of products) {
@@ -104,6 +119,27 @@ async function main() {
         costPrice: p.costPrice,
       },
     });
+
+    // 无保质期品类:入一个不带日期的批次演示
+    if (!p.category.hasExpiry) {
+      await prisma.batch.upsert({
+        where: {
+          productId_batchNo: { productId: product.id, batchNo: 'B-STOCK' },
+        },
+        update: {},
+        create: {
+          productId: product.id,
+          batchNo: 'B-STOCK',
+          productionDate: null,
+          expiryDate: null,
+          quantity: 100,
+          initialQty: 100,
+          costPrice: p.costPrice,
+          status: BatchStatus.ACTIVE,
+        },
+      });
+      continue;
+    }
 
     // 每个 SKU 造 3 个批次：已过期 / 临期(3 天) / 正常(60 天)
     const scenarios = [

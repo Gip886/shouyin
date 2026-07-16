@@ -11,6 +11,7 @@ export interface Category {
   id: string;
   name: string;
   nearExpiryDays: number;
+  hasExpiry: boolean;
 }
 
 export interface Product {
@@ -31,8 +32,8 @@ export interface Batch {
   productId: string;
   product?: Product;
   batchNo: string;
-  productionDate: string;
-  expiryDate: string;
+  productionDate: string | null;
+  expiryDate: string | null;
   quantity: number;
   initialQty: number;
   costPrice: string;

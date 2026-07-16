@@ -47,8 +47,8 @@ interface CartItem {
   barcode: string;
   name: string;
   batchNo: string;
-  expiryDate: string;
-  daysLeft: number;
+  expiryDate: string | null;
+  daysLeft: number | null;
   unit: string;
   unitPrice: string;
   qty: number;
@@ -898,20 +898,30 @@ export default function CheckoutPage() {
                     title: '到期',
                     dataIndex: 'expiryDate',
                     width: 130,
-                    render: (v: string, r) => (
-                      <Space direction="vertical" size={0}>
-                        <span>{v}</span>
-                        {r.nearExpiry ? (
-                          <Tag color="orange" style={{ marginRight: 0 }}>
-                            剩 {r.daysLeft} 天
-                          </Tag>
-                        ) : (
+                    render: (v: string | null, r) => {
+                      // 无保质期商品:后端 expiryDate/daysLeft 都返回 null,不显示"剩 X 天"
+                      if (!v || r.daysLeft == null) {
+                        return (
                           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                            剩 {r.daysLeft} 天
+                            无保质期
                           </Typography.Text>
-                        )}
-                      </Space>
-                    ),
+                        );
+                      }
+                      return (
+                        <Space direction="vertical" size={0}>
+                          <span>{v}</span>
+                          {r.nearExpiry ? (
+                            <Tag color="orange" style={{ marginRight: 0 }}>
+                              剩 {r.daysLeft} 天
+                            </Tag>
+                          ) : (
+                            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                              剩 {r.daysLeft} 天
+                            </Typography.Text>
+                          )}
+                        </Space>
+                      );
+                    },
                   },
                   {
                     title: '单价',

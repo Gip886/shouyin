@@ -52,6 +52,7 @@ model Category {
   id             String    @id @default(cuid())
   name           String    @unique
   nearExpiryDays Int       @default(30) // 品类默认临期阈值（天）
+  hasExpiry      Boolean   @default(true) // 该品类是否管过期。false = 文具/日用品等,入库不需填日期,收银不判过期
   createdAt      DateTime  @default(now())
   products       Product[]
 }
@@ -81,8 +82,8 @@ model Batch {
   productId      String
   product        Product     @relation(fields: [productId], references: [id])
   batchNo        String                              // 批次号
-  productionDate DateTime    @db.Date
-  expiryDate     DateTime    @db.Date                // 到期日（预算好落库）
+  productionDate DateTime?   @db.Date                 // 无保质期品类可为 null
+  expiryDate     DateTime?   @db.Date                 // 无保质期品类可为 null
   quantity       Int                                 // 当前剩余
   initialQty     Int                                 // 入库时数量
   costPrice      Decimal     @db.Decimal(10, 2)

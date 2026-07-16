@@ -58,10 +58,10 @@ export interface ScanResult {
   batch?: {
     id: string;
     batchNo: string;
-    productionDate: string; // ISO date
-    expiryDate: string;
+    productionDate: string | null; // 无保质期商品为 null
+    expiryDate: string | null;
     quantity: number;
-    daysLeft: number; // 距离过期天数，负数表示已过期
+    daysLeft: number | null; // 无保质期商品为 null
   };
 }
 
@@ -88,8 +88,8 @@ export interface CheckoutResult {
 export interface CreateBatchRequest {
   productId: string;
   batchNo?: string; // 空则后端自动生成
-  productionDate: string; // YYYY-MM-DD
-  expiryDate: string; // YYYY-MM-DD（前端算好或直接选）
+  productionDate?: string; // YYYY-MM-DD;无保质期分类可省略
+  expiryDate?: string; // YYYY-MM-DD;无保质期分类可省略
   quantity: number;
   costPrice: string;
 }
@@ -100,7 +100,7 @@ export interface NearExpiryBatch {
   productId: string;
   productName: string;
   barcode: string;
-  productionDate: string;
+  productionDate: string;   // 临期看板只返回有保质期的批次,这里不会 null
   expiryDate: string;
   daysLeft: number;
   quantity: number;

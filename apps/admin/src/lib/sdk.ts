@@ -12,6 +12,7 @@ export interface Category {
   id: string;
   name: string;
   nearExpiryDays: number;
+  hasExpiry: boolean;
   createdAt: string;
 }
 
@@ -35,8 +36,8 @@ export interface Batch {
   productId: string;
   product?: Product;
   batchNo: string;
-  productionDate: string;
-  expiryDate: string;
+  productionDate: string | null;
+  expiryDate: string | null;
   quantity: number;
   initialQty: number;
   costPrice: string;
@@ -65,11 +66,14 @@ export async function login(username: string, password: string) {
 
 // --- Categories ---
 export const listCategories = () => api.get<Category[]>('/categories').then((r) => r.data);
-export const createCategory = (data: { name: string; nearExpiryDays?: number }) =>
-  api.post<Category>('/categories', data).then((r) => r.data);
+export const createCategory = (data: {
+  name: string;
+  nearExpiryDays?: number;
+  hasExpiry?: boolean;
+}) => api.post<Category>('/categories', data).then((r) => r.data);
 export const updateCategory = (
   id: string,
-  data: { name?: string; nearExpiryDays?: number },
+  data: { name?: string; nearExpiryDays?: number; hasExpiry?: boolean },
 ) => api.patch<Category>(`/categories/${id}`, data).then((r) => r.data);
 export const deleteCategory = (id: string) =>
   api.delete(`/categories/${id}`).then((r) => r.data);

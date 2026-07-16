@@ -28,8 +28,8 @@ import {
 interface ReceiveFormValues {
   productId: string;
   batchNo?: string;
-  productionDate: Dayjs;
-  shelfLifeDays: number;
+  productionDate?: Dayjs;
+  shelfLifeDays?: number;
   quantity: number;
   costPrice: number;
 }
@@ -72,10 +72,19 @@ export default function BatchesPage() {
 
   const receiveMut = useMutation({
     mutationFn: async (v: ReceiveFormValues) => {
-      const production = v.productionDate.format('YYYY-MM-DD');
-      const expiry = v.productionDate
-        .add(v.shelfLifeDays, 'day')
-        .format('YYYY-MM-DD');
+      const chosen = products.find((p) => p.id === v.productId);
+      const hasExpiry = chosen?.category?.hasExpiry ?? true;
+      let production: string | undefined;
+      let expiry: string | undefined;
+      if (hasExpiry) {
+        if (!v.productionDate || !v.shelfLifeDays) {
+          throw new Error('请填写生产日期和保质期');
+        }
+        production = v.productionDate.format('YYYY-MM-DD');
+        expiry = v.productionDate
+          .add(v.shelfLifeDays, 'day')
+          .format('YYYY-MM-DD');
+      }
       return createBatch({
         productId: v.productId,
         batchNo: v.batchNo,
@@ -186,18 +195,19 @@ export default function BatchesPage() {
             title: '生产日期',
             dataIndex: 'productionDate',
             width: 120,
-            render: (v: string) => v.slice(0, 10),
+            render: (v: string | null) => v?.slice(0, 10) ?? '—',
           },
           {
             title: '到期日',
             dataIndex: 'expiryDate',
             width: 120,
-            render: (v: string) => v.slice(0, 10),
+            render: (v: string | null) => v?.slice(0, 10) ?? '无保质期',
           },
           {
             title: '剩余天数',
             width: 110,
             render: (_, r) => {
+              if (!r.expiryDate) return <Tag>—</Tag>;
               const d = daysLeftOf(r.expiryDate);
               if (d < 0) return <Tag color="volcano">过期 {-d} 天</Tag>;
               if (d < 7) return <Tag color="red">{d} 天</Tag>;
@@ -262,43 +272,78 @@ export default function BatchesPage() {
                   .includes(input.toLowerCase())
               }
               options={products.map((p) => ({
-                label: `${p.name} (${p.barcode})`,
+                label: `${p.name} (${p.barcode})${p.category?.hasExpiry === false ? ' · 无保质期' : ''}`,
                 value: p.id,
               }))}
             />
           </Form.Item>
-          <Space style={{ display: 'flex' }} align="baseline">
-            <Form.Item
-              label="生产日期"
-              name="productionDate"
-              rules={[{ required: true, message: '必填' }]}
-              style={{ flex: 1 }}
-            >
-              <DatePicker style={{ width: '100%' }} />
-            </Form.Item>
-            <Form.Item
-              label="保质期（天）"
-              name="shelfLifeDays"
-              rules={[{ required: true, message: '必填' }]}
-              style={{ width: 160 }}
-            >
-              <InputNumber min={1} max={3650} style={{ width: '100%' }} />
-            </Form.Item>
-          </Space>
-          <Typography.Paragraph type="secondary" style={{ marginTop: -8 }}>
-            到期日预览：
-            <Typography.Text strong>
-              <Form.Item
-                shouldUpdate={(prev, next) =>
-                  prev.productionDate !== next.productionDate ||
-                  prev.shelfLifeDays !== next.shelfLifeDays
-                }
-                noStyle
-              >
-                {() => expiryPreview()}
-              </Form.Item>
-            </Typography.Text>
-          </Typography.Paragraph>
+          {/* 生产日期/保质期两块,只在选中的商品所属分类"管过期"时才显示 */}
+          <Form.Item
+            noStyle
+            shouldUpdate={(prev, next) => prev.productId !== next.productId}
+          >
+            {({ getFieldValue }) => {
+              const pid = getFieldValue('productId');
+              const chosen = products.find((p) => p.id === pid);
+              // 未选商品:默认按"管过期"展示,一旦选定切换到实际值
+              const hasExpiry = chosen ? chosen.category?.hasExpiry !== false : true;
+              if (!hasExpiry) {
+                return (
+                  <Typography.Paragraph
+                    type="secondary"
+                    style={{
+                      background: '#f5f5f5',
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      marginBottom: 12,
+                    }}
+                  >
+                    该分类"{chosen?.category?.name}"不管过期,入库无需填写生产日期和保质期。
+                  </Typography.Paragraph>
+                );
+              }
+              return (
+                <>
+                  <Space style={{ display: 'flex' }} align="baseline">
+                    <Form.Item
+                      label="生产日期"
+                      name="productionDate"
+                      rules={[{ required: true, message: '必填' }]}
+                      style={{ flex: 1 }}
+                    >
+                      <DatePicker style={{ width: '100%' }} />
+                    </Form.Item>
+                    <Form.Item
+                      label="保质期(天)"
+                      name="shelfLifeDays"
+                      rules={[{ required: true, message: '必填' }]}
+                      style={{ width: 160 }}
+                    >
+                      <InputNumber
+                        min={1}
+                        max={3650}
+                        style={{ width: '100%' }}
+                      />
+                    </Form.Item>
+                  </Space>
+                  <Typography.Paragraph type="secondary" style={{ marginTop: -8 }}>
+                    到期日预览:
+                    <Typography.Text strong>
+                      <Form.Item
+                        shouldUpdate={(prev, next) =>
+                          prev.productionDate !== next.productionDate ||
+                          prev.shelfLifeDays !== next.shelfLifeDays
+                        }
+                        noStyle
+                      >
+                        {() => expiryPreview()}
+                      </Form.Item>
+                    </Typography.Text>
+                  </Typography.Paragraph>
+                </>
+              );
+            }}
+          </Form.Item>
           <Space style={{ display: 'flex' }} align="baseline">
             <Form.Item
               label="数量"

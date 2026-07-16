@@ -64,6 +64,23 @@ export class PosService {
       };
     }
 
+    // 无保质期分类:直接返回 OK,不判过期/临期。日期字段返回 null,前端 UI 据此不显示"剩 X 天"
+    if (!product.category.hasExpiry || !batch.expiryDate) {
+      return {
+        code: ScanCode.OK,
+        message: '',
+        product: this.productDto(product),
+        batch: {
+          id: batch.id,
+          batchNo: batch.batchNo,
+          productionDate: null,
+          expiryDate: null,
+          quantity: batch.quantity,
+          daysLeft: null,
+        },
+      };
+    }
+
     const daysLeft = diffDays(batch.expiryDate, todayUtc());
     const threshold =
       product.nearExpiryDays ?? product.category.nearExpiryDays ?? 30;
@@ -85,7 +102,7 @@ export class PosService {
       batch: {
         id: batch.id,
         batchNo: batch.batchNo,
-        productionDate: batch.productionDate.toISOString().slice(0, 10),
+        productionDate: batch.productionDate!.toISOString().slice(0, 10),
         expiryDate: batch.expiryDate.toISOString().slice(0, 10),
         quantity: batch.quantity,
         daysLeft,
@@ -137,7 +154,7 @@ export class PosService {
 
         // FOR UPDATE 锁行防止并发超卖。Prisma 通过 $queryRaw 拿锁。
         const rows = await tx.$queryRaw<
-          { id: string; product_id: string; quantity: number; status: BatchStatus; expiry_date: Date }[]
+          { id: string; product_id: string; quantity: number; status: BatchStatus; expiry_date: Date | null }[]
         >`SELECT id, "productId" AS product_id, quantity, status, "expiryDate" AS expiry_date
           FROM "Batch" WHERE id = ${item.batchId} FOR UPDATE`;
         const row = rows[0];
@@ -146,7 +163,8 @@ export class PosService {
         if (row.status !== BatchStatus.ACTIVE) {
           throw new ConflictException(`批次不可售: ${item.batchId}`);
         }
-        if (row.expiry_date.valueOf() < todayUtc().valueOf()) {
+        // 无保质期品类落库时 expiry_date 为 null,跳过过期检查
+        if (row.expiry_date && row.expiry_date.valueOf() < todayUtc().valueOf()) {
           throw new ConflictException(`批次已过期，拒绝结账: ${item.batchId}`);
         }
         if (row.quantity < item.qty) {

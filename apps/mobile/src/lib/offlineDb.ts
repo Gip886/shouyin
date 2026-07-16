@@ -10,8 +10,8 @@ export interface PendingInbound {
   productId: string;
   productName: string;       // 冗余,方便 UI 展示不用再查商品表
   productBarcode: string;
-  productionDate: string;    // YYYY-MM-DD
-  expiryDate: string;
+  productionDate?: string;   // YYYY-MM-DD;无保质期分类可省
+  expiryDate?: string;
   quantity: number;
   costPrice: string;
   createdAt: number;         // Date.now() —— 队列按此排序
@@ -30,8 +30,8 @@ export interface UploadHistoryEntry {
   productName: string;
   productBarcode: string;
   quantity: number;
-  productionDate: string;
-  expiryDate: string;
+  productionDate?: string;   // 无保质期分类为空
+  expiryDate?: string;
   createdAt: number;         // 原 pending 入队时间(方便员工"是我早上扫的那单")
   uploadedAt: number;        // 这次 replay 尝试的时间
   ok: boolean;
@@ -52,7 +52,8 @@ export const db = new Dexie('shouyin-mobile') as Dexie & {
   meta: EntityTable<MetaRow, 'key'>;
 };
 
-db.version(2).stores({
+// v2 → v3:仅字段变宽(productionDate/expiryDate 变 optional),不改索引,不需要 upgrade 函数
+db.version(3).stores({
   products: 'id, barcode, name, categoryId, updatedAt',
   pendingInbounds: 'clientId, createdAt, productId',
   uploadHistory: '++id, uploadedAt, ok, clientId',

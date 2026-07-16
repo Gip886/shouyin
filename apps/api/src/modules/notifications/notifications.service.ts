@@ -29,11 +29,13 @@ export class NotificationsService {
   async runDailyScan() {
     const today = todayUtc();
     // 已过期但仍在售的批次 → 标记为 EXPIRED_REMOVED（不自动改数量，等人工报损）
+    // 只扫有保质期的品类;文具/日用品这些永远不该被"过期下架"
     const expired = await this.prisma.batch.findMany({
       where: {
         status: BatchStatus.ACTIVE,
         quantity: { gt: 0 },
         expiryDate: { lt: today },
+        product: { category: { hasExpiry: true } },
       },
       include: { product: true },
     });
@@ -59,7 +61,8 @@ export class NotificationsService {
             batchNo: b.batchNo,
             productName: b.product.name,
             quantity: b.quantity,
-            daysOverdue: -diffDays(b.expiryDate, today),
+            // 过滤条件保证了 expiryDate 不为 null,! 安全
+            daysOverdue: -diffDays(b.expiryDate!, today),
           })),
           nearExpiry: nearExpiry,
         } as unknown as Prisma.InputJsonValue,

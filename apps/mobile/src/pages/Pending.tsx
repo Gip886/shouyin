@@ -72,7 +72,7 @@ export default function PendingPage() {
   const onDelete = (p: PendingInbound) => {
     Dialog.confirm({
       title: '删除这条待提交入库?',
-      content: `${p.productName} × ${p.quantity},到期 ${p.expiryDate}`,
+      content: `${p.productName} × ${p.quantity}${p.expiryDate ? `,到期 ${p.expiryDate}` : ''}`,
       onConfirm: async () => {
         await deletePendingInbound(p.clientId);
         await refresh();
@@ -193,7 +193,9 @@ export default function PendingPage() {
                               {p.costPrice}
                             </div>
                             <div>
-                              生产 {p.productionDate} → 到期 {p.expiryDate}
+                              {p.expiryDate
+                                ? `生产 ${p.productionDate ?? '—'} → 到期 ${p.expiryDate}`
+                                : '无保质期'}
                             </div>
                             <div>
                               创建 {dayjs(p.createdAt).format('MM-DD HH:mm')}
@@ -292,8 +294,8 @@ export default function PendingPage() {
                         description={
                           <div style={{ fontSize: 12, color: '#8c8c8c' }}>
                             <div>
-                              条码 {h.productBarcode} · {h.quantity} 件 · 到期{' '}
-                              {h.expiryDate}
+                              条码 {h.productBarcode} · {h.quantity} 件
+                              {h.expiryDate ? ` · 到期 ${h.expiryDate}` : ''}
                             </div>
                             <div>
                               上传于 {dayjs(h.uploadedAt).format('MM-DD HH:mm:ss')}

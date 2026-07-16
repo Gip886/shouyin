@@ -7,7 +7,7 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { CategoriesService } from './categories.service';
 
 class UpsertCategoryDto {
@@ -19,6 +19,10 @@ class UpsertCategoryDto {
   @IsInt()
   @Min(0)
   nearExpiryDays?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  hasExpiry?: boolean;
 }
 
 class CreateCategoryDto {
@@ -29,6 +33,10 @@ class CreateCategoryDto {
   @IsInt()
   @Min(0)
   nearExpiryDays?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  hasExpiry?: boolean;
 }
 
 @Controller('categories')

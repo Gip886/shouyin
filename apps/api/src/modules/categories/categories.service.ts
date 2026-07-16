@@ -15,16 +15,20 @@ export class CategoriesService {
     return c;
   }
 
-  create(data: { name: string; nearExpiryDays?: number }) {
+  create(data: { name: string; nearExpiryDays?: number; hasExpiry?: boolean }) {
     return this.prisma.category.create({
       data: {
         name: data.name,
         nearExpiryDays: data.nearExpiryDays ?? 30,
+        hasExpiry: data.hasExpiry ?? true,
       },
     });
   }
 
-  update(id: string, data: { name?: string; nearExpiryDays?: number }) {
+  update(
+    id: string,
+    data: { name?: string; nearExpiryDays?: number; hasExpiry?: boolean },
+  ) {
     return this.prisma.category.update({ where: { id }, data });
   }
 

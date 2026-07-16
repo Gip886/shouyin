@@ -102,8 +102,11 @@ export default function InboundPage() {
 
   const validate = (): string | null => {
     if (!product) return '未选商品';
-    if (!productionDate) return '请选择生产日期';
-    if (shelfLifeDays <= 0) return '保质期天数需 > 0';
+    // 无保质期分类:跳过日期/保质期校验
+    if (product.category?.hasExpiry !== false) {
+      if (!productionDate) return '请选择生产日期';
+      if (shelfLifeDays <= 0) return '保质期天数需 > 0';
+    }
     if (quantity <= 0) return '数量需 > 0';
     if (!costPrice || Number(costPrice) < 0) return '请填成本价';
     return null;
@@ -114,14 +117,19 @@ export default function InboundPage() {
     mutationFn: async () => {
       const err = validate();
       if (err) throw new Error(err);
-      const expiry = dayjs(productionDate).add(shelfLifeDays, 'day');
+      const hasExpiry = product!.category?.hasExpiry !== false;
+      const expiry = hasExpiry
+        ? dayjs(productionDate!).add(shelfLifeDays, 'day')
+        : null;
       const now = Date.now();
       const snapshot = {
         productName: product!.name,
         productBarcode: product!.barcode,
         quantity,
-        productionDate: dayjs(productionDate!).format('YYYY-MM-DD'),
-        expiryDate: expiry.format('YYYY-MM-DD'),
+        productionDate: hasExpiry
+          ? dayjs(productionDate!).format('YYYY-MM-DD')
+          : undefined,
+        expiryDate: hasExpiry ? expiry!.format('YYYY-MM-DD') : undefined,
         createdAt: now,
       };
       try {
@@ -180,14 +188,19 @@ export default function InboundPage() {
       Toast.show({ icon: 'fail', content: err });
       return;
     }
-    const expiry = dayjs(productionDate!).add(shelfLifeDays, 'day');
+    const hasExpiry = product!.category?.hasExpiry !== false;
+    const expiry = hasExpiry
+      ? dayjs(productionDate!).add(shelfLifeDays, 'day')
+      : null;
     await enqueueInbound({
       clientId: clientUuid(),
       productId: product!.id,
       productName: product!.name,
       productBarcode: product!.barcode,
-      productionDate: dayjs(productionDate!).format('YYYY-MM-DD'),
-      expiryDate: expiry.format('YYYY-MM-DD'),
+      productionDate: hasExpiry
+        ? dayjs(productionDate!).format('YYYY-MM-DD')
+        : undefined,
+      expiryDate: hasExpiry ? expiry!.format('YYYY-MM-DD') : undefined,
       quantity,
       costPrice,
       createdAt: Date.now(),
@@ -277,34 +290,43 @@ export default function InboundPage() {
 
           <Card style={{ marginTop: 12 }} title="批次信息">
             <List>
-              <List.Item
-                title="生产日期"
-                extra={
-                  <span
-                    style={{ color: productionDate ? '#333' : '#ccc' }}
+              {product.category?.hasExpiry !== false ? (
+                <>
+                  <List.Item
+                    title="生产日期"
+                    extra={
+                      <span
+                        style={{ color: productionDate ? '#333' : '#ccc' }}
+                        onClick={() => setDatePickerOpen(true)}
+                      >
+                        {productionDate
+                          ? dayjs(productionDate).format('YYYY-MM-DD')
+                          : '请选择'}
+                      </span>
+                    }
                     onClick={() => setDatePickerOpen(true)}
-                  >
-                    {productionDate
-                      ? dayjs(productionDate).format('YYYY-MM-DD')
-                      : '请选择'}
-                  </span>
-                }
-                onClick={() => setDatePickerOpen(true)}
-                arrow
-              />
-              <List.Item
-                title="保质期(天)"
-                extra={
-                  <Stepper
-                    min={1}
-                    max={3650}
-                    step={1}
-                    value={shelfLifeDays}
-                    onChange={setShelfLifeDays}
+                    arrow
                   />
-                }
-              />
-              <List.Item title="到期日预览" extra={<b>{expiryPreview}</b>} />
+                  <List.Item
+                    title="保质期(天)"
+                    extra={
+                      <Stepper
+                        min={1}
+                        max={3650}
+                        step={1}
+                        value={shelfLifeDays}
+                        onChange={setShelfLifeDays}
+                      />
+                    }
+                  />
+                  <List.Item title="到期日预览" extra={<b>{expiryPreview}</b>} />
+                </>
+              ) : (
+                <List.Item
+                  title="保质期"
+                  extra={<Tag color="default">该分类无保质期</Tag>}
+                />
+              )}
               <List.Item
                 title="入库数量"
                 extra={
