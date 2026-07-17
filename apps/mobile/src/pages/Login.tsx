@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { login } from '../lib/sdk';
 import { setSession } from '../lib/api';
+import { isNative } from '../lib/serverConfig';
 
 export default function LoginPage() {
   const nav = useNavigate();
@@ -39,7 +40,21 @@ export default function LoginPage() {
       }}
     >
       <SafeArea position="top" />
-      <NavBar backArrow={false} style={{ background: 'transparent', color: '#fff' }}>
+      <NavBar
+        backArrow={false}
+        style={{ background: 'transparent', color: '#fff' }}
+        right={
+          // 只在 APK 里显示这个入口 —— Web 端 baseURL 固定 /api,没这个概念
+          isNative() ? (
+            <span
+              style={{ color: '#fff', fontSize: 12 }}
+              onClick={() => nav('/setup?rebind=1', { replace: true })}
+            >
+              重新绑定服务器
+            </span>
+          ) : null
+        }
+      >
         <span style={{ color: '#fff' }}>移动库存</span>
       </NavBar>
       <div

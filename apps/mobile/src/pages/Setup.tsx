@@ -10,7 +10,7 @@ import {
   Toast,
 } from 'antd-mobile';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Scanner from '../components/Scanner';
 import {
   clearServerBaseUrl,
@@ -33,6 +33,10 @@ import { applyServerBaseUrl } from '../lib/api';
  */
 export default function SetupPage() {
   const nav = useNavigate();
+  const loc = useLocation();
+  // 从菜单点进来时,想直接扫新的,不希望被"已连"提示挡住 —— 用 URL query ?rebind=1 触发
+  // (loc.search 里带 ?rebind=1 就跳过已连卡片,直接给扫码 UI)
+  const forceRebind = loc.search.includes('rebind=1');
   const [current, setCurrent] = useState<string | null>(null);
   const [manual, setManual] = useState('http://');
   const [scanning, setScanning] = useState(false);
@@ -156,7 +160,7 @@ export default function SetupPage() {
       </NavBar>
 
       <div style={{ padding: 12, flex: 1 }}>
-        {current && (
+        {current && !forceRebind && (
           <Card>
             <div
               style={{
@@ -198,7 +202,7 @@ export default function SetupPage() {
           </Card>
         )}
 
-        {!current && (
+        {(!current || forceRebind) && (
           <>
             <Card title="扫管理员出示的 QR" style={{ marginTop: 8 }}>
               <div

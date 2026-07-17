@@ -1,4 +1,5 @@
-import { Badge, NavBar, SafeArea, TabBar, Toast } from 'antd-mobile';
+import { ActionSheet, Badge, NavBar, SafeArea, TabBar, Toast } from 'antd-mobile';
+import type { Action } from 'antd-mobile/es/components/action-sheet';
 import {
   AddSquareOutline,
   UnorderedListOutline,
@@ -6,10 +7,12 @@ import {
   ClockCircleOutline,
   UploadOutline,
 } from 'antd-mobile-icons';
+import { useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { clearSession, getCurrentUser } from '../lib/api';
 import { useStoreSettings } from '../lib/useStoreSettings';
 import { useOffline } from '../lib/OfflineContext';
+import { isNative } from '../lib/serverConfig';
 
 const ONLINE_ONLY_TABS = new Set(['/stocktake', '/scrap', '/near-expiry']);
 
@@ -27,6 +30,7 @@ export default function Layout() {
   const store = useStoreSettings();
   const user = getCurrentUser();
   const { online, pending } = useOffline();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const active =
     TABS.find((t) => loc.pathname.startsWith(t.key))?.key ?? '/inbound';
@@ -39,6 +43,33 @@ export default function Layout() {
     }
     nav(key);
   };
+
+  const menuActions: Action[] = [
+    ...(isNative()
+      ? [
+          {
+            text: '重新绑定服务器',
+            key: 'setup',
+            description: '换店铺 / 后端 IP 变了 / 扫错 QR 了都点这里',
+            onClick: () => {
+              setMenuOpen(false);
+              clearSession(); // 顺手清登录态 —— 换后端后原 token 无效
+              nav('/setup?rebind=1', { replace: true });
+            },
+          },
+        ]
+      : []),
+    {
+      text: '退出登录',
+      key: 'logout',
+      danger: true,
+      onClick: () => {
+        setMenuOpen(false);
+        clearSession();
+        nav('/login', { replace: true });
+      },
+    },
+  ];
 
   return (
     <div
@@ -76,17 +107,21 @@ export default function Layout() {
         right={
           <span
             style={{ fontSize: 12, color: '#888' }}
-            onClick={() => {
-              clearSession();
-              nav('/login', { replace: true });
-            }}
+            onClick={() => setMenuOpen(true)}
           >
-            {user?.displayName || user?.username} · 退出
+            {user?.displayName || user?.username} ▾
           </span>
         }
       >
         {store.storeName} · {activeTitle}
       </NavBar>
+
+      <ActionSheet
+        visible={menuOpen}
+        actions={menuActions}
+        onClose={() => setMenuOpen(false)}
+        cancelText="取消"
+      />
 
       <div style={{ flex: 1, overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <Outlet />
