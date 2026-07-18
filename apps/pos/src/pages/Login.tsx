@@ -1,12 +1,15 @@
 import { Button, Card, Form, Input, Typography, message } from 'antd';
+import { SettingOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { login } from '../lib/sdk';
 import { setSession } from '../lib/api';
+import ServerConfigModal from '../components/ServerConfigModal';
 
 export default function LoginPage() {
   const nav = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [cfgOpen, setCfgOpen] = useState(false);
 
   const onSubmit = async (values: { username: string; password: string }) => {
     setLoading(true);
@@ -78,7 +81,18 @@ export default function LoginPage() {
             登录
           </Button>
         </Form>
+        <div style={{ marginTop: 16, textAlign: 'center' }}>
+          <Button
+            type="link"
+            size="small"
+            icon={<SettingOutlined />}
+            onClick={() => setCfgOpen(true)}
+          >
+            服务器地址
+          </Button>
+        </div>
       </Card>
+      <ServerConfigModal open={cfgOpen} onClose={() => setCfgOpen(false)} />
     </div>
   );
 }

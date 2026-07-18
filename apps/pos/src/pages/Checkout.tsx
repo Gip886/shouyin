@@ -27,6 +27,7 @@ import {
   DollarOutlined,
   WechatOutlined,
   AlipayCircleOutlined,
+  SettingOutlined,
 } from '@ant-design/icons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -39,6 +40,7 @@ import { clearSession, getCurrentUser } from '../lib/api';
 import { openCashDrawer } from '../lib/cashDrawer';
 import { printReceipt, type Receipt } from '../lib/printer';
 import { useStoreSettings } from '../lib/useStoreSettings';
+import ServerConfigModal from '../components/ServerConfigModal';
 
 interface CartItem {
   key: string;
@@ -738,6 +740,8 @@ export default function CheckoutPage() {
     nav('/login', { replace: true });
   };
 
+  const [serverCfgOpen, setServerCfgOpen] = useState(false);
+
   const meta = PAYMENT_META[payMethod];
 
   return (
@@ -787,6 +791,13 @@ export default function CheckoutPage() {
           >
             补打小票 (P)
           </Button>
+          <Button
+            type="text"
+            icon={<SettingOutlined />}
+            style={{ color: '#fff' }}
+            onClick={() => setServerCfgOpen(true)}
+            title="修改服务器地址"
+          />
           <Button
             type="text"
             icon={<LogoutOutlined />}
@@ -1316,6 +1327,10 @@ export default function CheckoutPage() {
           </div>
         )}
       </Modal>
+      <ServerConfigModal
+        open={serverCfgOpen}
+        onClose={() => setServerCfgOpen(false)}
+      />
     </Layout>
   );
 }

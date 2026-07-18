@@ -1,5 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import { message } from 'antd';
+import { resolveApiBaseUrl } from './serverConfig';
 
 // 与 admin 分离，避免共用登录态互相踩
 export const TOKEN_KEY = 'shouyin.pos.token';
@@ -31,10 +32,16 @@ export function clearSession() {
   localStorage.removeItem(USER_KEY);
 }
 
+// baseURL 启动时从 localStorage 决定:配了绝对 URL 用它,没配用同源 /api
 export const api = axios.create({
-  baseURL: '/api',
+  baseURL: resolveApiBaseUrl(),
   timeout: 15000,
 });
+
+/** 员工在设置页改完地址后调用,让后续请求立刻用新值,不用刷新页面 */
+export function applyServerBaseUrl() {
+  api.defaults.baseURL = resolveApiBaseUrl();
+}
 
 api.interceptors.request.use((cfg) => {
   const t = getToken();
