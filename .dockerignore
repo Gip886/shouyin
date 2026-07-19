@@ -1,0 +1,38 @@
+# 拷贝到镜像时忽略这些,防止把开发脏数据搬进去,也让 build context 从数百 MB 缩到几 MB
+node_modules
+**/node_modules
+.pnpm-store
+dist
+**/dist
+
+# 构建产物 / 缓存
+.turbo
+.next
+.cache
+*.tsbuildinfo
+
+# Capacitor 原生工程 —— 我们只在 API 里跑 mobile 是不构建的,这一目录几百 MB
+apps/mobile/android
+apps/mobile/ios
+
+# IDE / 编辑器
+.vscode
+.idea
+*.swp
+.DS_Store
+
+# git / CI
+.git
+.github
+
+# 本地环境文件(镜像内部走 compose 传参,别把宿主的 .env 也塞进去)
+.env
+apps/*/.env
+*.env.local
+
+# 日志和临时文件
+*.log
+npm-debug.log*
+pnpm-debug.log*
+tmp
+temp

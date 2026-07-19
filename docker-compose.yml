@@ -1,26 +1,70 @@
+# ═══════════════════════════════════════════════════════════════════
+#  收银系统 · 完整一键部署
+#
+#  用法:
+#    cp .env.docker.example .env       # 装机前改一次密码,别裸奔
+#    docker compose up -d              # 起(首次会自动建表 + seed)
+#    docker compose logs -f api        # 看后端日志
+#    docker compose down               # 停(数据保留在 volume)
+#    docker compose down -v            # 停 + 清空数据库(⚠️ 慎用,数据全没)
+#
+#  首次启动后:
+#    - 后台      http://<服务器IP>:3001/admin/    admin  / SEED_ADMIN_PASSWORD
+#    - 收银台    http://<服务器IP>:3001/pos/      cashier / SEED_CASHIER_PASSWORD
+#    - 手机 APK  同一个 http://<服务器IP>:3001
+# ═══════════════════════════════════════════════════════════════════
+
 services:
   postgres:
     image: postgres:16-alpine
     container_name: shouyin-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: shouyin
-      POSTGRES_PASSWORD: shouyin
-      POSTGRES_DB: shouyin
+      POSTGRES_USER: ${POSTGRES_USER:-shouyin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shouyin}
+      POSTGRES_DB: ${POSTGRES_DB:-shouyin}
+    # 生产环境可以注释掉这行 —— 数据库只在 compose 网络里对 api 开就够。
+    # 开发/需要 pg_dump 备份时打开;开发也可以只开 Adminer(下面 profile=debug)。
     ports:
       - "5432:5432"
     volumes:
       - shouyin-pg:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U shouyin"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-shouyin}"]
       interval: 5s
       timeout: 3s
       retries: 10
 
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: shouyin/api:latest
+    container_name: shouyin-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # 在 compose 网络里连数据库,主机名固定就是 postgres 服务名。
+      # 不允许被外部 .env 里的 DATABASE_URL 覆盖(那会引用 localhost 让 API 连不上)。
+      DATABASE_URL: postgresql://${POSTGRES_USER:-shouyin}:${POSTGRES_PASSWORD:-shouyin}@postgres:5432/${POSTGRES_DB:-shouyin}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-please-change-me-in-production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-12h}
+      PORT: 3001
+      # 首次 seed 用。改完再启动**不会**生效(entrypoint 只在空库时 seed)。
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-admin123}
+      SEED_CASHIER_PASSWORD: ${SEED_CASHIER_PASSWORD:-cashier123}
+    ports:
+      - "${API_PORT:-3001}:3001"
+
+  # Adminer:数据库 web 界面。默认不启,想用:
+  #   docker compose --profile debug up -d
   adminer:
     image: adminer:4
     container_name: shouyin-adminer
     restart: unless-stopped
+    profiles: ["debug"]
     depends_on:
       - postgres
     ports:
