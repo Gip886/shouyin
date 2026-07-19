@@ -21,7 +21,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ConfigProvider locale={zhCN}>
       <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
+        {/* basename 用 vite 注入的 BASE_URL:build 后是 '/admin/'(后端挂在这个前缀下),
+            dev 是 '/'(vite 5173 根路径)。去掉尾斜杠符合 react-router 要求。 */}
+        <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
           <App />
         </BrowserRouter>
       </QueryClientProvider>
