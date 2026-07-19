@@ -14,6 +14,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { ReportsModule } from './modules/reports/reports.module';
 import { StoreSettingsModule } from './modules/store-settings/store-settings.module';
 import { HealthModule } from './modules/health/health.module';
+import { UsersModule } from './modules/users/users.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { HealthModule } from './modules/health/health.module';
     ReportsModule,
     StoreSettingsModule,
     HealthModule,
+    UsersModule,
   ],
   providers: [
     {

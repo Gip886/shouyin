@@ -13,6 +13,7 @@ import { clearSession, getCurrentUser } from '../lib/api';
 import { useStoreSettings } from '../lib/useStoreSettings';
 import { useOffline } from '../lib/OfflineContext';
 import { isNative } from '../lib/serverConfig';
+import ChangePasswordSheet from './ChangePasswordSheet';
 
 const ONLINE_ONLY_TABS = new Set(['/stocktake', '/scrap', '/near-expiry']);
 
@@ -31,6 +32,7 @@ export default function Layout() {
   const user = getCurrentUser();
   const { online, pending } = useOffline();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [pwdOpen, setPwdOpen] = useState(false);
 
   const active =
     TABS.find((t) => loc.pathname.startsWith(t.key))?.key ?? '/inbound';
@@ -45,6 +47,15 @@ export default function Layout() {
   };
 
   const menuActions: Action[] = [
+    {
+      text: '修改密码',
+      key: 'change-password',
+      description: '给自己换一个新的登录密码',
+      onClick: () => {
+        setMenuOpen(false);
+        setPwdOpen(true);
+      },
+    },
     ...(isNative()
       ? [
           {
@@ -122,6 +133,7 @@ export default function Layout() {
         onClose={() => setMenuOpen(false)}
         cancelText="取消"
       />
+      <ChangePasswordSheet visible={pwdOpen} onClose={() => setPwdOpen(false)} />
 
       <div style={{ flex: 1, overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <Outlet />

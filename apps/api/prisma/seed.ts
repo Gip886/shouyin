@@ -17,13 +17,33 @@ function daysFromToday(days: number): Date {
 async function main() {
   console.log('🌱 开始种子数据...');
 
-  // 用户
-  const adminPass = await bcrypt.hash('admin123', 10);
-  const cashierPass = await bcrypt.hash('cashier123', 10);
+  // ── 用户 ─────────────────────────────────────────────
+  // 密码优先读环境变量,没配才用默认值(会大声警告),这样装机流程可以:
+  //   SEED_ADMIN_PASSWORD=xxx SEED_CASHIER_PASSWORD=yyy pnpm db:seed
+  // 装完直接就是老板设的密码,不会留 admin/admin123 这种默认口。
+  //
+  // 注意:seed 是"幂等 upsert",默认 update 分支是空的 —— 换句话说,
+  // 第二次跑 seed **不会**覆盖已经存在的用户密码。这是有意为之(避免运行中被 seed 意外重置)。
+  // 想强制重置,把环境变量 SEED_FORCE_RESET_PASSWORD=1 打开。
+  const forceReset = process.env.SEED_FORCE_RESET_PASSWORD === '1';
+  const adminPlain = process.env.SEED_ADMIN_PASSWORD;
+  const cashierPlain = process.env.SEED_CASHIER_PASSWORD;
+  if (!adminPlain) {
+    console.warn(
+      '⚠️  没设 SEED_ADMIN_PASSWORD,admin 使用默认密码 admin123 —— 生产环境务必装机时改!',
+    );
+  }
+  if (!cashierPlain) {
+    console.warn(
+      '⚠️  没设 SEED_CASHIER_PASSWORD,cashier 使用默认密码 cashier123 —— 生产环境务必装机时改!',
+    );
+  }
+  const adminPass = await bcrypt.hash(adminPlain ?? 'admin123', 10);
+  const cashierPass = await bcrypt.hash(cashierPlain ?? 'cashier123', 10);
 
   const admin = await prisma.user.upsert({
     where: { username: 'admin' },
-    update: {},
+    update: forceReset ? { passwordHash: adminPass } : {},
     create: {
       username: 'admin',
       displayName: '管理员',
@@ -34,7 +54,7 @@ async function main() {
 
   await prisma.user.upsert({
     where: { username: 'cashier' },
-    update: {},
+    update: forceReset ? { passwordHash: cashierPass } : {},
     create: {
       username: 'cashier',
       displayName: '收银员小李',

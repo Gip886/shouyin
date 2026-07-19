@@ -38,3 +38,9 @@ export const recentOrders = (limit = 20) =>
   api
     .get<RecentOrder[]>('/reports/recent-orders', { params: { limit } })
     .then((r) => r.data);
+
+/** 员工自助改密。POS 上给收银员一个"改密码"入口,不用麻烦管理员。 */
+export const changeOwnPassword = (oldPassword: string, newPassword: string) =>
+  api
+    .post<{ ok: true }>('/users/me/change-password', { oldPassword, newPassword })
+    .then((r) => r.data);

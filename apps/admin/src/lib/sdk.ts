@@ -165,3 +165,31 @@ export const getStoreSettings = () =>
   api.get<StoreSettings>('/store-settings').then((r) => r.data);
 export const updateStoreSettings = (data: UpdateStoreSettingsRequest) =>
   api.patch<StoreSettings>('/store-settings', data).then((r) => r.data);
+
+// --- Users ---
+export type UserRole = 'ADMIN' | 'CASHIER' | 'STOCKER';
+export interface User {
+  id: string;
+  username: string;
+  displayName: string;
+  role: UserRole;
+  isActive: boolean;
+  createdAt: string;
+}
+export const listUsers = () => api.get<User[]>('/users').then((r) => r.data);
+export const createUser = (data: {
+  username: string;
+  displayName: string;
+  password: string;
+  role?: UserRole;
+}) => api.post<User>('/users', data).then((r) => r.data);
+export const updateUser = (
+  id: string,
+  data: { displayName?: string; role?: UserRole; isActive?: boolean },
+) => api.patch<User>(`/users/${id}`, data).then((r) => r.data);
+export const resetUserPassword = (id: string, password: string) =>
+  api.post<User>(`/users/${id}/reset-password`, { password }).then((r) => r.data);
+export const changeOwnPassword = (oldPassword: string, newPassword: string) =>
+  api
+    .post<{ ok: true }>('/users/me/change-password', { oldPassword, newPassword })
+    .then((r) => r.data);

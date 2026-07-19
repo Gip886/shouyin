@@ -9,6 +9,7 @@ import NotificationsPage from './pages/Notifications';
 import ReportsPage from './pages/Reports';
 import StoreSettingsPage from './pages/StoreSettings';
 import MobileSetupPage from './pages/MobileSetup';
+import UsersPage from './pages/Users';
 import RequireAuth from './components/RequireAuth';
 
 export default function App() {
@@ -32,6 +33,7 @@ export default function App() {
         <Route path="reports" element={<ReportsPage />} />
         <Route path="settings" element={<StoreSettingsPage />} />
         <Route path="mobile-setup" element={<MobileSetupPage />} />
+        <Route path="users" element={<UsersPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

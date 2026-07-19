@@ -7,6 +7,8 @@ import {
   BarChartOutlined,
   SettingOutlined,
   MobileOutlined,
+  TeamOutlined,
+  KeyOutlined,
   LogoutOutlined,
 } from '@ant-design/icons';
 import { Avatar, Dropdown, Layout as AntLayout, Menu, Typography, Badge } from 'antd';
@@ -14,10 +16,13 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { clearSession, getCurrentUser } from '../lib/api';
 import { listNotifications } from '../lib/sdk';
+import { useState } from 'react';
+import ChangePasswordModal from './ChangePasswordModal';
 
 const { Header, Sider, Content } = AntLayout;
 
-const items = [
+// 菜单项 + 谁能看到。role='ADMIN' 表示只有管理员能看,不填则所有登录用户都看得到。
+const items: Array<{ key: string; icon: JSX.Element; label: string; role?: string }> = [
   { key: '/dashboard', icon: <DashboardOutlined />, label: '仪表盘' },
   { key: '/categories', icon: <AppstoreOutlined />, label: '品类管理' },
   { key: '/products', icon: <ShoppingOutlined />, label: '商品管理' },
@@ -26,12 +31,14 @@ const items = [
   { key: '/reports', icon: <BarChartOutlined />, label: '销售报表' },
   { key: '/settings', icon: <SettingOutlined />, label: '店铺设置' },
   { key: '/mobile-setup', icon: <MobileOutlined />, label: '移动端配置' },
+  { key: '/users', icon: <TeamOutlined />, label: '账号管理', role: 'ADMIN' },
 ];
 
 export default function Layout() {
   const nav = useNavigate();
   const loc = useLocation();
   const user = getCurrentUser();
+  const [pwdOpen, setPwdOpen] = useState(false);
 
   const { data: unread } = useQuery({
     queryKey: ['notifications', 'unread-count'],
@@ -44,7 +51,9 @@ export default function Layout() {
     nav('/login', { replace: true });
   };
 
-  const badgedItems = items.map((it) =>
+  // 按角色过滤菜单;后端也标了 @Roles,双保险
+  const visibleItems = items.filter((it) => !it.role || it.role === user?.role);
+  const badgedItems = visibleItems.map((it) =>
     it.key === '/notifications'
       ? {
           ...it,
@@ -98,7 +107,16 @@ export default function Layout() {
         >
           <Dropdown
             menu={{
-              items: [{ key: 'logout', icon: <LogoutOutlined />, label: '退出登录', onClick: onLogout }],
+              items: [
+                {
+                  key: 'change-password',
+                  icon: <KeyOutlined />,
+                  label: '修改密码',
+                  onClick: () => setPwdOpen(true),
+                },
+                { type: 'divider' as const },
+                { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', onClick: onLogout },
+              ],
             }}
           >
             <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -113,6 +131,7 @@ export default function Layout() {
           <Outlet />
         </Content>
       </AntLayout>
+      <ChangePasswordModal open={pwdOpen} onClose={() => setPwdOpen(false)} />
     </AntLayout>
   );
 }

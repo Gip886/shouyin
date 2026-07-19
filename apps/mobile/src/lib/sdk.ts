@@ -100,3 +100,9 @@ export const adjustBatch = (id: string, data: AdjustBatchRequest) =>
 // --- Store Settings ---
 export const getStoreSettings = () =>
   api.get<StoreSettings>('/store-settings').then((r) => r.data);
+
+/** 员工在移动端改自己密码 */
+export const changeOwnPassword = (oldPassword: string, newPassword: string) =>
+  api
+    .post<{ ok: true }>('/users/me/change-password', { oldPassword, newPassword })
+    .then((r) => r.data);

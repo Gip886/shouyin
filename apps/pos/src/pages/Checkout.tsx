@@ -28,6 +28,7 @@ import {
   WechatOutlined,
   AlipayCircleOutlined,
   SettingOutlined,
+  KeyOutlined,
 } from '@ant-design/icons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -41,6 +42,7 @@ import { openCashDrawer } from '../lib/cashDrawer';
 import { printReceipt, type Receipt } from '../lib/printer';
 import { useStoreSettings } from '../lib/useStoreSettings';
 import ServerConfigModal from '../components/ServerConfigModal';
+import ChangePasswordModal from '../components/ChangePasswordModal';
 
 interface CartItem {
   key: string;
@@ -741,6 +743,7 @@ export default function CheckoutPage() {
   };
 
   const [serverCfgOpen, setServerCfgOpen] = useState(false);
+  const [pwdOpen, setPwdOpen] = useState(false);
 
   const meta = PAYMENT_META[payMethod];
 
@@ -791,6 +794,18 @@ export default function CheckoutPage() {
           >
             补打小票 (P)
           </Button>
+          {/* 收银台"修改密码"入口暂时隐藏 —— 员工在忙时容易误点,
+              且改完会强制登出,可能中断当前开单。后台"账号管理"可以由老板统一重置。
+              以后要恢复,把下面这段解开就行,ChangePasswordModal 组件仍然挂着。*/}
+          {/*
+          <Button
+            type="text"
+            icon={<KeyOutlined />}
+            style={{ color: '#fff' }}
+            onClick={() => setPwdOpen(true)}
+            title="修改我的密码"
+          />
+          */}
           <Button
             type="text"
             icon={<SettingOutlined />}
@@ -1331,6 +1346,7 @@ export default function CheckoutPage() {
         open={serverCfgOpen}
         onClose={() => setServerCfgOpen(false)}
       />
+      <ChangePasswordModal open={pwdOpen} onClose={() => setPwdOpen(false)} />
     </Layout>
   );
 }
